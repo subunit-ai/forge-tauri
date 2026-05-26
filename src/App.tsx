@@ -1,49 +1,70 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
+import { useEffect, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { BridgeStatusCard, type BridgeStatus } from "./BridgeStatusCard";
+
+const POLL_INTERVAL_MS = 3000;
+
+const appStyle: CSSProperties = {
+  alignItems: "center",
+  background: "linear-gradient(160deg, #0a1424 0%, #0e2333 62%, #062a36 100%)",
+  boxSizing: "border-box",
+  color: "#ecfeff",
+  display: "flex",
+  fontFamily:
+    'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  inset: 0,
+  justifyContent: "center",
+  padding: 20,
+  position: "fixed",
+};
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [status, setStatus] = useState<BridgeStatus | null>(null);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    async function refreshStatus() {
+      try {
+        const nextStatus = await invoke<BridgeStatus>("bridge_status");
+        if (!cancelled) {
+          setStatus(nextStatus);
+          setLastChecked(new Date());
+          setError(null);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setStatus({ online: false, version: null, paired: null });
+          setLastChecked(new Date());
+          setError(caught instanceof Error ? caught.message : String(caught));
+        }
+      } finally {
+        if (!cancelled) {
+          timeoutId = window.setTimeout(refreshStatus, POLL_INTERVAL_MS);
+        }
+      }
+    }
+
+    refreshStatus();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
+    <main style={appStyle}>
+      <BridgeStatusCard
+        status={status}
+        lastChecked={lastChecked}
+        error={error}
+      />
     </main>
   );
 }
