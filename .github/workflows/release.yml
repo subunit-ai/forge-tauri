@@ -9,8 +9,6 @@ on:
 # Architektur: Sidecars werden EINMAL auf Linux gebaut (Bun cross-compile inkl. Windows-Targets)
 # und als Artifact verteilt — vermeidet Cross-Repo-Checkout des privaten bridge-tauri auf Windows
 # (ssh-key-Permissions-Problem). Win-ARM-Sidecar = x64 via Emulation (Bun hat kein win-arm64).
-# TODO: actions/upload-artifact + download-artifact per Commit-SHA pinnen.
-
 permissions:
   contents: write
 
@@ -32,7 +30,7 @@ jobs:
         env:
           BRIDGE_SRC: ${{ github.workspace }}/bridge-src
         run: bash scripts/fetch-sidecars.sh
-      - uses: actions/upload-artifact@v4 # TODO: SHA-pin
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: sidecars
           path: |
@@ -54,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - name: Download sidecars
-        uses: actions/download-artifact@v4 # TODO: SHA-pin
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: sidecars
           path: ${{ github.workspace }}
