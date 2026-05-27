@@ -152,6 +152,14 @@ impl BridgeClient {
         Ok(())
     }
 
+    pub async fn post_help_request(&self) -> Result<(), BridgeClientError> {
+        self.post_authed_json(
+            "/forge/help-request",
+            &serde_json::json!({ "kind": "forge.help_request" }),
+        )
+        .await
+    }
+
     fn endpoint_url(&self, path: &str) -> String {
         format!(
             "{}/{}",

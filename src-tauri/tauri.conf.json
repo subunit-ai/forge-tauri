@@ -12,9 +12,39 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "u1 Forge",
         "width": 800,
         "height": 600
+      },
+      {
+        "label": "overlay",
+        "title": "u1 arbeitet",
+        "url": "index.html",
+        "fullscreen": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "focus": false,
+        "focusable": false,
+        "visible": false,
+        "shadow": false
+      },
+      {
+        "label": "overlayControl",
+        "title": "Forge Overlay",
+        "url": "index.html",
+        "width": 170,
+        "height": 46,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "visible": false,
+        "shadow": false
       }
     ],
     "security": {
@@ -28,6 +58,7 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
     ],

@@ -21,8 +21,12 @@ type BridgeStatusCardProps = {
   error: string | null;
   consentError: string | null;
   consentAction: string | null;
+  helpActionPending: boolean;
+  helpMessage: string | null;
+  helpError: string | null;
   onRevoke: () => void;
   onResume: () => void;
+  onHelpRequest: () => void;
 };
 
 const styles: Record<string, CSSProperties> = {
@@ -144,6 +148,18 @@ const styles: Record<string, CSSProperties> = {
     minHeight: 36,
     padding: "8px 11px",
   },
+  helpButton: {
+    background: "#06b6d4",
+    border: "1px solid #06b6d4",
+    borderRadius: 8,
+    boxShadow: "none",
+    color: "#0a1424",
+    fontSize: 13,
+    fontWeight: 800,
+    lineHeight: "18px",
+    minHeight: 36,
+    padding: "8px 11px",
+  },
   resumeButton: {
     background: "#06b6d4",
     border: "1px solid #06b6d4",
@@ -166,6 +182,16 @@ const styles: Record<string, CSSProperties> = {
     marginTop: 18,
     padding: 12,
   },
+  info: {
+    background: "rgba(6, 182, 212, 0.09)",
+    border: "1px solid rgba(6, 182, 212, 0.24)",
+    borderRadius: 8,
+    color: "#075d6d",
+    fontSize: 13,
+    lineHeight: "18px",
+    marginTop: 18,
+    padding: 12,
+  },
 };
 
 export function BridgeStatusCard({
@@ -175,8 +201,12 @@ export function BridgeStatusCard({
   error,
   consentError,
   consentAction,
+  helpActionPending,
+  helpMessage,
+  helpError,
   onRevoke,
   onResume,
+  onHelpRequest,
 }: BridgeStatusCardProps) {
   const online = status?.online === true;
   const stateLabel = online ? "Online" : "Offline";
@@ -268,6 +298,14 @@ export function BridgeStatusCard({
 
           <div style={styles.remoteControls}>
             <button
+              disabled={helpActionPending}
+              onClick={onHelpRequest}
+              style={styles.helpButton}
+              type="button"
+            >
+              Hilfe anfordern
+            </button>
+            <button
               disabled={consentAction === "consent_revoke"}
               onClick={onRevoke}
               style={styles.stopButton}
@@ -304,6 +342,8 @@ export function BridgeStatusCard({
         </div>
       </div>
 
+      {helpMessage ? <div style={styles.info}>{helpMessage}</div> : null}
+      {helpError ? <div style={styles.error}>{helpError}</div> : null}
       {error ? <div style={styles.error}>{error}</div> : null}
       {consentError ? <div style={styles.error}>{consentError}</div> : null}
     </section>
