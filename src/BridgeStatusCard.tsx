@@ -6,10 +6,23 @@ export type BridgeStatus = {
   paired?: boolean | null;
 };
 
+export type ConsentState = {
+  remote_access: string;
+  session_grant?: unknown;
+  pending_count?: number;
+  last_session_active_at?: string | number | null;
+  [key: string]: unknown;
+};
+
 type BridgeStatusCardProps = {
   status: BridgeStatus | null;
+  consentState: ConsentState | null;
   lastChecked: Date | null;
   error: string | null;
+  consentError: string | null;
+  consentAction: string | null;
+  onRevoke: () => void;
+  onResume: () => void;
 };
 
 const styles: Record<string, CSSProperties> = {
@@ -100,6 +113,49 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: "20px",
     textAlign: "right",
   },
+  remotePanel: {
+    borderTop: "1px solid rgba(10, 20, 36, 0.11)",
+    display: "grid",
+    gap: 14,
+    marginTop: 20,
+    paddingTop: 18,
+  },
+  remoteHeader: {
+    alignItems: "center",
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "space-between",
+  },
+  remoteControls: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  stopButton: {
+    background: "#991b1b",
+    border: "1px solid #991b1b",
+    borderRadius: 8,
+    boxShadow: "none",
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: 800,
+    lineHeight: "18px",
+    minHeight: 36,
+    padding: "8px 11px",
+  },
+  resumeButton: {
+    background: "#06b6d4",
+    border: "1px solid #06b6d4",
+    borderRadius: 8,
+    boxShadow: "none",
+    color: "#0a1424",
+    fontSize: 13,
+    fontWeight: 800,
+    lineHeight: "18px",
+    minHeight: 36,
+    padding: "8px 11px",
+  },
   error: {
     background: "rgba(220, 38, 38, 0.08)",
     border: "1px solid rgba(220, 38, 38, 0.2)",
@@ -114,8 +170,13 @@ const styles: Record<string, CSSProperties> = {
 
 export function BridgeStatusCard({
   status,
+  consentState,
   lastChecked,
   error,
+  consentError,
+  consentAction,
+  onRevoke,
+  onResume,
 }: BridgeStatusCardProps) {
   const online = status?.online === true;
   const stateLabel = online ? "Online" : "Offline";
@@ -141,6 +202,31 @@ export function BridgeStatusCard({
       : status.paired
         ? "Paired"
         : "Not paired";
+  const remoteAccess = consentState?.remote_access;
+  const remoteActive = remoteAccess === "active";
+  const remoteRevoked = remoteAccess === "revoked";
+  const remoteKnown = remoteActive || remoteRevoked;
+  const remoteLabel = remoteActive
+    ? "AKTIV"
+    : remoteRevoked
+      ? "GESTOPPT"
+      : "UNBEKANNT";
+  const remoteBadgeStyle: CSSProperties = {
+    ...styles.badge,
+    background: remoteActive
+      ? "rgba(6, 182, 212, 0.13)"
+      : "rgba(220, 38, 38, 0.1)",
+    color: remoteActive ? "#075d6d" : "#991b1b",
+  };
+  const remoteDotStyle: CSSProperties = {
+    ...styles.dot,
+    background: remoteActive ? "#06b6d4" : "#dc2626",
+  };
+  const lastActiveAt = parseLastActiveAt(consentState?.last_session_active_at);
+  const u1Active =
+    lastActiveAt !== null &&
+    Date.now() >= lastActiveAt &&
+    Date.now() - lastActiveAt < 40_000;
 
   return (
     <section style={styles.card} aria-label="Bridge status">
@@ -173,7 +259,71 @@ export function BridgeStatusCard({
         </div>
       </div>
 
+      <div style={styles.remotePanel}>
+        <div style={styles.remoteHeader}>
+          <span style={remoteBadgeStyle}>
+            <span style={remoteDotStyle} />
+            Remote-Zugriff: {remoteLabel}
+          </span>
+
+          <div style={styles.remoteControls}>
+            <button
+              disabled={consentAction === "consent_revoke"}
+              onClick={onRevoke}
+              style={styles.stopButton}
+              type="button"
+            >
+              Stop (Zugriff sperren)
+            </button>
+            {remoteRevoked ? (
+              <button
+                disabled={consentAction === "consent_resume"}
+                onClick={onResume}
+                style={styles.resumeButton}
+                type="button"
+              >
+                Fortsetzen
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div style={styles.detailGrid}>
+          <div style={styles.detailRow}>
+            <span style={styles.detailLabel}>Pending</span>
+            <span style={styles.detailValue}>
+              {consentState?.pending_count ?? "Unknown"}
+            </span>
+          </div>
+          <div style={styles.detailRow}>
+            <span style={styles.detailLabel}>u1 arbeitet</span>
+            <span style={styles.detailValue}>
+              {u1Active ? "Aktiv" : remoteKnown ? "Inaktiv" : "Unknown"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {error ? <div style={styles.error}>{error}</div> : null}
+      {consentError ? <div style={styles.error}>{consentError}</div> : null}
     </section>
   );
+}
+
+function parseLastActiveAt(value: string | number | null | undefined): number | null {
+  if (typeof value === "number") {
+    return value < 1_000_000_000_000 ? value * 1000 : value;
+  }
+
+  if (typeof value === "string") {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric;
+    }
+
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
 }

@@ -1,6 +1,6 @@
 use reqwest::StatusCode;
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{env, fmt, fs, path::PathBuf, time::Duration};
 
@@ -126,6 +126,30 @@ impl BridgeClient {
             .json::<T>()
             .await
             .map_err(BridgeClientError::Request)
+    }
+
+    pub async fn post_authed_json<B>(&self, path: &str, body: &B) -> Result<(), BridgeClientError>
+    where
+        B: Serialize + ?Sized,
+    {
+        let token = read_local_api_token()?;
+        let response = self
+            .http
+            .post(self.endpoint_url(path))
+            .bearer_auth(token)
+            .json(body)
+            .send()
+            .await?;
+        let status = response.status();
+
+        if !status.is_success() {
+            return Err(BridgeClientError::HttpStatus {
+                path: path.to_string(),
+                status,
+            });
+        }
+
+        Ok(())
     }
 
     fn endpoint_url(&self, path: &str) -> String {
