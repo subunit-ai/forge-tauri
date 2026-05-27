@@ -28,6 +28,9 @@ declare -A TARGETS=(
 # nur die Targets bauen, die für diesen CI-Runner gebraucht werden (oder alle lokal)
 ONLY="${ONLY:-}"
 
+echo "[fetch-sidecars] bun install im Bridge-Source ($BRIDGE_SRC)"
+( cd "$BRIDGE_SRC" && ( "$BUN" install --frozen-lockfile || "$BUN" install ) )
+
 for triple in "${!TARGETS[@]}"; do
   [ -n "$ONLY" ] && [ "$ONLY" != "$triple" ] && continue
   ext=""; [[ "$triple" == *windows* ]] && ext=".exe"
