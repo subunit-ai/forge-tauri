@@ -62,6 +62,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/subunit-bridge"]
+    "externalBin": ["binaries/subunit-bridge"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "longDescription": "u1 Forge — Remote-Support. Bündelt die Subunit Bridge als Sidecar (ein Paket).",
+    "shortDescription": "u1 Forge (Remote-Support)"
   }
 }
