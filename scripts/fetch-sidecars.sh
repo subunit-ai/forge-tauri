@@ -36,13 +36,11 @@ for triple in "${!TARGETS[@]}"; do
   ( cd "$BRIDGE_SRC" && "$BUN" build src/main.ts --compile --target="${TARGETS[$triple]}" --outfile "$out" )
 done
 
-echo "[fetch-sidecars] SHA-256:"
-( cd "$OUT" && sha256sum subunit-bridge-* > "$MANIFEST.new" && cat "$MANIFEST.new" )
-if [ -f "$MANIFEST" ]; then
-  if ! diff -q "$MANIFEST" "$MANIFEST.new" >/dev/null 2>&1; then
-    echo "[fetch-sidecars] ❌ SHA-Mismatch vs gepinntes Manifest — FAIL CLOSED"; rm -f "$MANIFEST.new"; exit 1
-  fi
-  echo "[fetch-sidecars] ✓ Hashes matchen gepinntes Manifest"; rm -f "$MANIFEST.new"
-else
-  mv "$MANIFEST.new" "$MANIFEST"; echo "[fetch-sidecars] Initiales Manifest geschrieben — reviewen + committen + supply_chain.rs-Pin abgleichen"
-fi
+# Manifest FRISCH je Build schreiben. `bun --compile` ist nicht byte-deterministisch, daher ist ein
+# committeter Cross-Build-Hash-Pin sinnlos — das Integritätsmodell ist: dieser Build erzeugt Binary
+# UND Manifest zusammen, supply_chain.rs embedded das Manifest zur Compile-Zeit (include_str!) und
+# verifiziert zur LAUFZEIT → erkennt Tampering am ausgelieferten Sidecar. Reihenfolge: fetch-sidecars
+# (schreibt Manifest) MUSS vor `tauri build` (kompiliert supply_chain) laufen.
+echo "[fetch-sidecars] SHA-256-Manifest (frisch):"
+( cd "$OUT" && sha256sum subunit-bridge-* > "$MANIFEST" && cat "$MANIFEST" )
+echo "[fetch-sidecars] ✓ Manifest geschrieben (Runtime-Verify in der App = Tamper-Schutz am gebündelten Binary)"
