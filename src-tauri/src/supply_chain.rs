@@ -6,16 +6,13 @@ use std::{
 };
 
 pub const SIDECAR_NAME: &str = "subunit-bridge";
-// HINWEIS: `bun --compile` ist NICHT byte-deterministisch → dieser Pin gilt für genau das
-// lokale Sidecar-Artefakt. Für CI muss der Pin aus dem Build-Manifest (scripts/sidecar-sha256.txt)
-// des jeweiligen Builds kommen statt hartcodiert (offene Codex-Politur, siehe Plan Phase 4).
-pub const PINNED_SHA256_HEX: &str =
-    "417c5b1ac3dd8b0f4e54a2319b4e295e776c2ebbac3ce30efd8a1c2ea532333d";
+const SIDECAR_MANIFEST: &str = include_str!("../../scripts/sidecar-sha256.txt");
+const TARGET_TRIPLE: &str = env!("SUBUNIT_TARGET_TRIPLE");
 
-const PINNED_SHA256: [u8; 32] = [
-    0x41, 0x7c, 0x5b, 0x1a, 0xc3, 0xdd, 0x8b, 0x0f, 0x4e, 0x54, 0xa2, 0x31, 0x9b, 0x4e, 0x29, 0x5e,
-    0x77, 0x6c, 0x2e, 0xbb, 0xac, 0x3c, 0xe3, 0x0e, 0xfd, 0x8a, 0x1c, 0x2e, 0xa5, 0x32, 0x33, 0x3d,
-];
+#[cfg(windows)]
+const SIDECAR_EXTENSION: &str = ".exe";
+#[cfg(not(windows))]
+const SIDECAR_EXTENSION: &str = "";
 
 pub fn resolved_sidecar_path() -> Result<PathBuf, String> {
     let exe_path = std::env::current_exe()
@@ -29,23 +26,28 @@ pub fn resolved_sidecar_path() -> Result<PathBuf, String> {
         exe_dir
     };
 
-    let mut sidecar_path = base_dir.join(SIDECAR_NAME);
+    let candidates = [
+        base_dir.join(bundled_sidecar_filename()),
+        base_dir.join(dev_sidecar_filename()),
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("binaries")
+            .join(dev_sidecar_filename()),
+    ];
 
-    #[cfg(windows)]
-    {
-        if sidecar_path.extension().is_none() {
-            sidecar_path.as_mut_os_string().push(".exe");
+    for candidate in &candidates {
+        if candidate.is_file() {
+            return Ok(candidate.clone());
         }
     }
 
-    #[cfg(not(windows))]
-    {
-        if sidecar_path.extension().is_some_and(|ext| ext == "exe") {
-            sidecar_path.set_extension("");
-        }
-    }
-
-    Ok(sidecar_path)
+    Err(format!(
+        "failed to resolve bridge sidecar for target {TARGET_TRIPLE}; tried {}",
+        candidates
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    ))
 }
 
 pub fn verify_resolved_sidecar() -> Result<PathBuf, String> {
@@ -57,16 +59,56 @@ pub fn verify_resolved_sidecar() -> Result<PathBuf, String> {
 pub fn verify_sidecar(path: &Path) -> Result<(), String> {
     let actual = sha256_file(path)
         .map_err(|error| format!("failed to hash sidecar at {}: {error}", path.display()))?;
+    let expected = expected_sidecar_sha256()?;
 
-    if constant_time_eq_32(&actual, &PINNED_SHA256) {
+    if constant_time_eq_32(&actual, &expected.bytes) {
         return Ok(());
     }
 
     Err(format!(
         "sidecar integrity check failed for {}: expected SHA-256 {}, got {}",
         path.display(),
-        PINNED_SHA256_HEX,
+        expected.hex,
         hex_encode(&actual)
+    ))
+}
+
+fn bundled_sidecar_filename() -> String {
+    format!("{SIDECAR_NAME}{SIDECAR_EXTENSION}")
+}
+
+fn dev_sidecar_filename() -> String {
+    format!("{SIDECAR_NAME}-{TARGET_TRIPLE}{SIDECAR_EXTENSION}")
+}
+
+struct ExpectedSha256 {
+    hex: &'static str,
+    bytes: [u8; 32],
+}
+
+fn expected_sidecar_sha256() -> Result<ExpectedSha256, String> {
+    let artifact = dev_sidecar_filename();
+
+    for line in SIDECAR_MANIFEST.lines() {
+        let mut parts = line.split_whitespace();
+        let Some(hex) = parts.next() else {
+            continue;
+        };
+        let Some(filename) = parts.next() else {
+            continue;
+        };
+        let filename = filename.strip_prefix('*').unwrap_or(filename);
+
+        if filename == artifact {
+            return Ok(ExpectedSha256 {
+                hex,
+                bytes: hex_decode_32(hex)?,
+            });
+        }
+    }
+
+    Err(format!(
+        "sidecar integrity check failed closed: no SHA-256 manifest entry for {artifact}"
     ))
 }
 
@@ -95,6 +137,34 @@ fn constant_time_eq_32(left: &[u8; 32], right: &[u8; 32]) -> bool {
         diff |= left[index] ^ right[index];
     }
     diff == 0
+}
+
+fn hex_decode_32(hex: &str) -> Result<[u8; 32], String> {
+    if hex.len() != 64 {
+        return Err(format!(
+            "sidecar integrity check failed closed: expected 64 hex chars, got {}",
+            hex.len()
+        ));
+    }
+
+    let mut bytes = [0_u8; 32];
+    for (index, byte) in bytes.iter_mut().enumerate() {
+        let offset = index * 2;
+        let high = hex_value(hex.as_bytes()[offset])?;
+        let low = hex_value(hex.as_bytes()[offset + 1])?;
+        *byte = (high << 4) | low;
+    }
+
+    Ok(bytes)
+}
+
+fn hex_value(byte: u8) -> Result<u8, String> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'a'..=b'f' => Ok(byte - b'a' + 10),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
+        _ => Err("sidecar integrity check failed closed: invalid SHA-256 hex".to_string()),
+    }
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
