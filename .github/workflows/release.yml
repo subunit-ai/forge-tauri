@@ -80,5 +80,5 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "u1 Forge ${{ github.ref_name }}"
-          releaseDraft: true
+          releaseDraft: false
           args: ${{ matrix.args }}
